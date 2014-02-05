@@ -32,9 +32,9 @@ img {
 	border-radius: 40px;
 }
 
-::selection {color: #FFFFFF; background: #18547D;}
+/* ::selection {color: #FFFFFF; background: #18547D;} */
 /* ::-moz-selection {color: #FFFFFF; background: #18547D;} */
-/* -moz for firefox; not proper CSS3 */
+/* nicer highlight color; not proper CSS3 */
 
 .content-resume {
 	text-align: left;
