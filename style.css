@@ -1,9 +1,5 @@
 /* by Brian Pilchik of Tufts University. February 2014 */
 
-/* TODO
-	[ ] fix background shadow not extending past initial page height
-*/
-
 /* ========== GLOBAL ========== */
 body {
 	min-height: 100%; /* forces background to extend to full page height */
