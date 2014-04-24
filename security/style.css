@@ -1,0 +1,83 @@
+/* ========== GLOBAL ========== */
+
+html {
+    color: #444;
+    font-family: 'Dosis', sans-serif;
+    font-size: 16px;
+}
+
+body {
+    margin: 50px 20%;
+}
+
+p {
+	margin: 8px, 0px;
+}
+
+img {
+	border: 1px solid #444;
+}
+
+/* ========== ANCHORS ========== */
+
+a:link {
+	color: #3679FF;
+}
+
+a:visited {
+	color: #FF6C36;
+}
+
+a:hover {
+	color: #444444;
+}
+
+a:active {
+	color: #FF6C36;
+}
+
+/* ========== TEXT EFFECTS ========== */
+
+h1,h2,h3 {
+	margin: 8px 0px;
+}
+
+hr {
+	margin: 16px 0px;
+}
+
+.emph {
+	font-weight: bold;
+}
+
+.code {
+	font-family: 'Anonymous Pro', sans-serif;
+	background-color: #EDF0F5;
+	border: 1px solid #C6CBD1;
+	color: #3679FF;
+	padding: 2px;
+}
+
+.sev-high {
+	background-color: #F5F5F2;
+	border: 1px solid #D1CECB;
+	color: #F50029;
+	padding: 2px;
+	font-weight: bold;
+}
+
+.sev-medium {
+	background-color: #F5F5F2;
+	border: 1px solid #D1CECB;
+	color: #F5A700;
+	padding: 2px;
+	font-weight: bold;
+}
+
+.sev-low {
+	background-color: #F5F5F2;
+	border: 1px solid #D1CECB;
+	color: #DEC905;
+	padding: 2px;
+	font-weight: bold;
+}

@@ -1,0 +1,92 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+	<meta charset="utf-8">
+	<title>Security Assessment of 2048 Game Center</title>
+	<link href='http://fonts.googleapis.com/css?family=Dosis:400,700' rel='stylesheet' type='text/css'>
+	<link href='http://fonts.googleapis.com/css?family=Anonymous+Pro' rel='stylesheet' type='text/css'>
+	<link rel="stylesheet" href="style.css">
+</head>
+
+<body>
+	<h1>Security Assessment of 2048 Game Center</h1>
+	<p>Performed April 2014 by Brian Pilchik of Tufts University.</p>
+	<hr>
+	<h2>Introduction</h2>
+	<p>For this assessment, I reviewed the <a href="http://afternoon-cove-2023.herokuapp.com/" target="_blank">2048 Game Center</a> product created by Nitesh Gupta in <a href="http://tuftsdev.github.io/WebProgramming/" target="_blank">Tufts University's COMP 20 class</a>. The product is described by its original specifications as "a web application that maintains final scores and grids for all your (and perhaps for other players') 2048 games for a long period of time" using Heroku, Node.js, Express, and MongoDB. I was asked to identify vulnerabilities in the product and propose resolutions.</p>
+	<hr>
+	<h2>Methodology</h2>
+	<p>I began with black-box testing against the live app running on Heroku. Here, I used <a href="http://www.hurl.it/" target="_blank">Hurl</a> (an online version of curl) to interact with the web app. I then requested the source code from Nitesh and attempted to find additional vulnerabilities there (white-box testing).</p>
+	<hr>
+	<h2>Abstract of Findings</h2>
+	<p>The largest security vulnerabilities, of course, come from trusting user input. This product is susceptible to malicious users running their own code on the product, since the product does not check to make sure user input is safe. User input can also overload the database by sending too much data, since the product does not limit the size of data sent. Beyond that, there is a danger that unintended users can communicate with the product remotely. It is also worth noting a smaller flaw in this product: the product accepts data from clients, even if the data is missing parts. Each of these vulnerabilities, however, can be resolved.</p>
+	<hr>
+	<h2>Issues Found</h2>
+	<p>
+		<ol>
+			<li><a href="#issue1">Cross-Site Scripting (XSS)</a></li>
+			<li><a href="#issue2">Open Access to the API (via CORS)</a></li>
+			<li><a href="#issue3">No Size Constraints</a></li>
+			<li><a href="#issue4">Data Validation Missing</a></li>
+		</ol>
+	</p>
+	<br>
+
+	<h3 id="issue1">1. Cross-Site Scripting (XSS)</h3>
+	<p><span class="emph">Location:</span> Vulnerability in POST API, Affects GET API</p>
+	<p><span class="emph">Severity:</span> <span class="sev-high">HIGH</span></p>
+	<p><span class="emph">Description:</span> Data submitted to the server via the POST API is not sanitized before being added to the database. If a malicious user injects script into the POST command, that script will be stored in the database and later run for clients via the GET API.</p>
+	<p>For example, if we Hurl <span class="code">username=mchow</span>, <span class="code">score=&ltiframe width="420" height="315" src="//www.youtube.com/embed/dQw4w9WgXcQ?autoplay=1" frameborder="0" allowfullscreen&gt&lt/iframe&gt</span>, <span class="code">grid={}</span> as <a href="http://afternoon-cove-2023.herokuapp.com/scores.json" target="_blank">a POST request to the server</a>, we can insert an iFrame into <a href="http://afternoon-cove-2023.herokuapp.com/scores.json?username=mchow" target="_blank">the results table for username=mchow</a>.</p>
+	<p><img src="screenshots/1-1.jpg" alt="Game Center with an inserted iframe"></p>
+	<p>Or, we could take a page out of Ming Chow's book and drop the same redirect code he used against his students onto the page with a simple <span class="code">score=&ltscript&gtwindow.location='https://www.youtube.com';&lt/script&gt</span>, directing users away from the page entirely.</p>
+	<p>And, of course, we can do more than mess with the HTML. JavaScript will run in this way, as evidenced by Hurling <span class="code">score=&ltscript&gtalert("HELLO!");&lt/script&gt</span>.</p>
+	<p><img src="screenshots/1-2.jpg" alt="Game Center with a JavaScript alert"></p>
+	<p>Allowing JavaScript to run is extremely dangerous, opening up nearly limitless varieties of malicious results for clients relying on the API.</p>
+	<p><span class="emph">Resolution:</span> To prevent scripts from being sent to the database through the POST API, we need to sanitize the input coming in from the client. For this solution, we run the input strings (username, score, and grid) through a whitelist of permissible characters, removing all other characters: e.g. <span class="code">username.replace(/[^a-z0-9{}[],:\"\s]/gi, '')</span>. To be a little nicer to the client, we could escape the characters instead, converting angle brackets to their harmless HTML equivalents, but it seems to me unlikely that the user needs to use special characters for the purposes of transmitting a username in the Game Center context.</p>
+	<br>
+
+	<h3 id="issue2">2. Open Access to the API (via CORS)</h3>
+	<p><span class="emph">Location:</span> Server-Wide</p>
+	<p><span class="emph">Severity:</span> <span class="sev-medium">MEDIUM</span></p>
+	<p><span class="emph">Description:</span> Entering data into the database is simply a matter of using the POST API, and it works no matter who you are or where you're posting from. This means that anyone can POST data to the server, allowing for the creation of fabricated scores from unintended users (this flaw was exploited live in Ming Chow's COMP 20 class while he was first attempting to demonstrate a working version of the product). What's worse, anyone posting to a scoreboard can add any information they like; spammers can start posting links to commercial products in their "scores", and so on. Sure enough, a quick look inside the product's code reveals the line <span class="code">res.header("Access-Control-Allow-Origin", "*");</span>, which enables Cross-Origin Resource Sharing (CORS) universally. This means that anyone can send data to the server.</p>
+	<p><img src="screenshots/2-1.jpg" alt="Game Center with a hacked message inserted"></p>
+	<p><img src="screenshots/2-2.jpg" alt="Source code with CORS *"></p>
+	<p><span class="emph">Resolution:</span> To resolve, some kind of unique identification (an API key) should be issued to developers as part of using the API, so that only that developer can modify the high score boards for the projects he or she is working on. Ming Chow suggests using the <span class="code">withCredentials</span> property on <span class="code">XMLHttpRequest</span> (a cookie) for authentication. It may also be useful to examine the data sent to the server to see whether or not it is the type of data expected (but this is better addressed through Issue #1 and Issue #3).</p>
+	<br>
+
+	<h3 id="issue3">3. No Size Constraints</h3>
+	<p><span class="emph">Location:</span> POST API</p>
+	<p><span class="emph">Severity:</span> <span class="sev-medium">MEDIUM</span></p>
+	<p><span class="emph">Description:</span> A client using the API can POST data of unlimited length, capped only by MongoDB's 16mb/document cap (not to mention the storage limit on the free Mongo lab for Heroku). This means that malicious (or well-meaning but foolish) users can enter long enough user names, for example, to break the formatting of the high scores (forcing data onto a second line, for instance). More concerning, a client could potentially send many megabytes of data to the database, which exceeds the limit set by MongoDB. It is unclear what would happens under such a circumstance, but precautions should be taken. Thinking in even bigger-picture terms, even if smaller data (say, 10mb) is sent in every POST, this will still begin to fill up the space on the server very quickly, and many large entries could slow down the database operations used to search through the documents.</p>
+	<p>In my testing, I attempted to send a 30mb text file to the server for the "score" parameter. In response, "null" was listed as the score in my entry. But thereafter, all future POSTs to the server contained null scores... even legitimate data! That seems to break Mongo.</p>
+	<p><img src="screenshots/4-1.jpg" alt="Hurl.it used to send a POST to Heroku"></p>
+	<p>Attempts to send regular POSTs now result in null scores:</p>
+	<p><img src="screenshots/4-2.jpg" alt="Game Center only able to display null data"></p>
+	<p><span class="emph">Resolution:</span> We want to end the connection if too much data is being sent to the server. <a href="http://stackoverflow.com/questions/4295782/how-do-you-extract-post-data-in-node-js" target="_blank">One contributor on Stack Overflow</a> suggests using <span class="code">if (body.length > 1e6) { request.connection.destroy(); }</span> in order to avoid a "flood attack" against the server (or in the case of a faulty client). Returning a 413 error (request entity too large) is also appropriate here.</p>
+	<br>
+
+	<h3 id="issue4">4. Data Validation Missing</h3>
+	<p><span class="emph">Location:</span> POST API</p>
+	<p><span class="emph">Severity:</span> <span class="sev-low">LOW</span></p>
+	<p><span class="emph">Description:</span> Although not a serious vulnerability, I noticed in black-box testing (and confirmed by reviewing the code) that at no point does the web app check to see that POSTed data contains all three required fields (username, score, grid). As such, entries can be made to the database which lack one or more of these fields, resulting in "null" entries. I have not yet found a way to exploit the "null" values to cause further damage, but clients who rely on values in each entry could run into crashes or errors given that the returned data is not guaranteed to contain non-null values.</p>
+	<p><img src="screenshots/3-1.jpg" alt="Game Center with a null score"></p>
+	<p><img src="screenshots/3-2.jpg" alt="Source code that does not assert parameters"></p>
+	<p><span class="emph">Resolution:</span> To resolve, simply assert that the three parameters expected from the client are non-null before adding anything to the database: <span class="code">if(req.body.username && req.body.score && req.body.grid) { var username = req.body.username; //...and so on</span>.</p>
+	<br>
+
+	<h3>Attempted (Failed) Attacks</h3>
+	<p>The product was secure against the following attempted attacks:<br>
+		<ul>
+			<li>Searching project files for plaintext usernames, passwords, or URIs (to Heroku, MongoDB) did not yeild anything.</li>
+			<li>Source code did not seem vulnerable to MongoDB Injection.</li>
+			<li>Server does not allow excess POST parameters to be added to the database.</li>
+		</ul>
+	</p>
+	<hr>
+	<h2>Conclusion</h2>
+	<p>Current vulnerabilities with this product make it too insecure to release in its current form. However, the resolutions described above can quickly and easily resolve these problems, which should make this product much more secure. (I can hardly suggest a cost for implementing these solutions, seeing as I have already provided the solutions above.) This analysis, however, cannot guarantee that all vulnerabilities have been identified, and resolving the aforementioned problems does not mean the product is ready to launch. Further evaluation is suggested, perhaps by <a href="http://abcinnovations.com/" target="_blank">the computer and website experts at ABC Innovations.</a></p>
+	
+</body>
+
+</html>
